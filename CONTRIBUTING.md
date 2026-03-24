@@ -193,13 +193,13 @@ python bot.py
 
 | GPIO | Назначение | Тип |
 |------|-----------|-----|
-| 2 | POWER кнопка → PC817 CH1 | OUT |
-| 4 | MODE кнопка → PC817 CH2 | OUT |
-| 12 | SPEED кнопка → PC817 CH3 | OUT |
-| 13 | TIMER кнопка → PC817 CH4 | OUT |
-| 14 | SLEEP кнопка → PC817 CH5 | OUT |
-| 15 | TEMP+ кнопка → PC817 CH6 | OUT |
-| 16 | TEMP- кнопка → PC817 CH7 | OUT |
+| 12 | POWER кнопка → PC817 CH1 | OUT |
+| 13 | MODE кнопка → PC817 CH2 | OUT |
+| 14 | SLEEP кнопка → PC817 CH3 | OUT |
+| 15 | SPEED кнопка → PC817 CH4 | OUT |
+| 16 | TIMER кнопка → PC817 CH5 | OUT |
+| 17 | TEMP+ кнопка → PC817 CH6 | OUT |
+| 21 | TEMP- кнопка → PC817 CH7 | OUT |
 | 3 | DHT22 датчик | IN |
 | 26 | COMP индикатор | IN |
 | 32 | AUTO индикатор | IN |
