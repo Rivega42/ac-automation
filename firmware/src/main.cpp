@@ -12,6 +12,7 @@
 #include "state.h"
 #include "api.h"
 #include "mqtt.h"
+#include "nvs_state.h"
 
 ACState g_state;
 QueueHandle_t g_buttonQueue = nullptr;
@@ -318,6 +319,7 @@ ACState snapshotState() {
 
 void publishStateToOutputs() {
   const ACState state = snapshotState();
+  nvsSaveState(state);  // сохраняем в NVS при каждом изменении
   mqttPublishState(state, true);
   mqttPublishTelemetry(state);
 }
@@ -327,6 +329,9 @@ void setup() {
 
   g_stateMutex = xSemaphoreCreateMutex();
   g_buttonQueue = xQueueCreate(16, sizeof(ButtonPress));
+
+  // Восстанавливаем состояние из NVS до инициализации периферии
+  nvsRestoreState();
 
   setupPins();
   dht.begin();
