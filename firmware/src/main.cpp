@@ -13,6 +13,7 @@
 #include "api.h"
 #include "mqtt.h"
 #include "nvs_state.h"
+#include "scheduler.h"
 
 ACState g_state;
 QueueHandle_t g_buttonQueue = nullptr;
@@ -347,6 +348,7 @@ void setup() {
 
   xTaskCreatePinnedToCore(buttonTask, "ButtonTask", 4096, nullptr, 1, nullptr, 1);
 
+  schedulerSetup();
   publishStateToOutputs();
 }
 
@@ -383,6 +385,13 @@ void loop() {
     if (updateSensor()) {
       publishStateToOutputs();
     }
+  }
+
+  // Расписание — проверяем раз в 30 секунд
+  static uint32_t lastSchedulerTick = 0;
+  if (now - lastSchedulerTick >= 30000) {
+    lastSchedulerTick = now;
+    schedulerTick();
   }
 
   delay(5);
