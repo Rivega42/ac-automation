@@ -53,7 +53,25 @@ String buildSensorJson(const ACState& state) {
   return json;
 }
 
+// Debounce: игнорируем повторное нажатие той же кнопки < 600 мс
+static uint32_t lastPressTime[7] = {};
+static constexpr uint16_t DEBOUNCE_MS = 600;
+
 void sendButtonResponse(AsyncWebServerRequest* request, ButtonAction action) {
+  const uint8_t idx = static_cast<uint8_t>(action);
+  const uint32_t now = millis();
+
+  if (now - lastPressTime[idx] < DEBOUNCE_MS) {
+    StaticJsonDocument<128> doc;
+    doc["ok"] = false;
+    doc["action"] = actionToName(action);
+    doc["reason"] = "debounce";
+    String payload; serializeJson(doc, payload);
+    request->send(429, "application/json", payload);
+    return;
+  }
+  lastPressTime[idx] = now;
+
   const bool queued = enqueueButtonAction(action);
 
   StaticJsonDocument<128> doc;

@@ -2,28 +2,35 @@
 
 #include <Arduino.h>
 
-// Wi-Fi placeholders
+// Wi-Fi — задаётся в credentials.h (не коммитить!)
+#if __has_include("credentials.h")
+#  include "credentials.h"
+#else
 constexpr char WIFI_SSID[] = "YOUR_WIFI_SSID";
 constexpr char WIFI_PASS[] = "YOUR_WIFI_PASSWORD";
-
-// MQTT placeholders
 constexpr char MQTT_HOST[] = "192.168.1.100";
-constexpr uint16_t MQTT_PORT = 1883;
 constexpr char MQTT_USER[] = "mqtt_user";
 constexpr char MQTT_PASS[] = "mqtt_password";
+#endif
 
+constexpr uint16_t MQTT_PORT = 1883;
 constexpr char DEVICE_HOSTNAME[] = "ac-control";
 constexpr char MQTT_PREFIX[] = "home/ac/mystery";
 
-// Updated GPIO map from docs/ТЗ.md section 11
-constexpr uint8_t PIN_POWER = 12;
-constexpr uint8_t PIN_MODE = 13;
-constexpr uint8_t PIN_SLEEP = 14;
-constexpr uint8_t PIN_SPEED = 15;
-constexpr uint8_t PIN_TIMER = 16;
-constexpr uint8_t PIN_TEMP_UP = 17;
-constexpr uint8_t PIN_TEMP_DOWN = 21;
+// GPIO map — ESP32-CAM (docs/ТЗ.md §2.2)
+// Кнопки → PC817 оптопара → HIGH = нажать
+constexpr uint8_t PIN_POWER    =  2;
+constexpr uint8_t PIN_MODE     =  4;
+constexpr uint8_t PIN_SPEED    = 12;
+constexpr uint8_t PIN_TIMER    = 13;
+constexpr uint8_t PIN_SLEEP    = 14;
+constexpr uint8_t PIN_TEMP_UP  = 15;
+constexpr uint8_t PIN_TEMP_DOWN = 16;
 
+// DHT22 — GPIO3 (RX0) конфликт с Serial!
+// Используем GPIO1 (TX0) только если Serial отключён,
+// иначе перенести на свободный пин (напр. GPIO33 или GPIO0).
+// ВНИМАНИЕ: уточнить физическое подключение перед прошивкой!
 constexpr uint8_t PIN_DHT = 3;
 
 constexpr uint8_t PIN_IND_COMP = 26;
