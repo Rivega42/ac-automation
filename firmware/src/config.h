@@ -27,11 +27,10 @@ constexpr uint8_t PIN_SLEEP    = 14;
 constexpr uint8_t PIN_TEMP_UP  = 15;
 constexpr uint8_t PIN_TEMP_DOWN = 16;
 
-// DHT22 — GPIO3 (RX0) конфликт с Serial!
-// Используем GPIO1 (TX0) только если Serial отключён,
-// иначе перенести на свободный пин (напр. GPIO33 или GPIO0).
-// ВНИМАНИЕ: уточнить физическое подключение перед прошивкой!
-constexpr uint8_t PIN_DHT = 3;
+// DHT22 — GPIO33 (свободный пин ESP32-CAM, без конфликтов)
+// GPIO3 (RX0) из ТЗ конфликтует с Serial — перенесено на GPIO33.
+// Физически переподключи DATA провод DHT22 с GPIO3 на GPIO33.
+constexpr uint8_t PIN_DHT = 33;
 
 constexpr uint8_t PIN_IND_COMP = 26;
 constexpr uint8_t PIN_IND_AUTO = 32;
