@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mystery MSS-09R07M</title>
+  <style>
+    :root {
+      --bg: #111316;
+      --panel: #1c2024;
+      --accent: #00b8d4;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --warn: #ef4444;
+      --ok: #22c55e;
+      --btn: #2a3138;
+      --btn-active: #0f766e;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1f2630 0%, var(--bg) 45%);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .panel {
+      width: min(720px, 100%);
+      background: linear-gradient(180deg, #20252b, var(--panel));
+      border: 1px solid #374151;
+      border-radius: 18px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+      padding: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.25rem;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+    }
+
+    .sensor {
+      display: flex;
+      gap: 14px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+      flex-wrap: wrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    button {
+      border: 1px solid #4b5563;
+      background: var(--btn);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 14px 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: transform .08s ease, background .2s ease;
+    }
+
+    button:active {
+      transform: scale(0.98);
+      background: #374151;
+    }
+
+    button.active {
+      background: var(--btn-active);
+      border-color: #14b8a6;
+    }
+
+    .states {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+
+    .tag {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #2b3139;
+      color: var(--muted);
+      border: 1px solid #4b5563;
+    }
+
+    .tag.ok {
+      color: #d1fae5;
+      border-color: #166534;
+      background: rgba(34, 197, 94, 0.2);
+    }
+
+    .tag.warn {
+      color: #fee2e2;
+      border-color: #991b1b;
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    @media (max-width: 520px) {
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <h1>Mystery MSS-09R07M</h1>
+    <div class="sensor">
+      <span>Комнатная: <strong id="temp">--</strong> °C</span>
+      <span>Влажность: <strong id="hum">--</strong> %</span>
+      <span>Уставка: <strong id="target">--</strong> °C</span>
+    </div>
+
+    <section class="grid">
+      <button data-action="power">POWER</button>
+      <button data-action="mode">MODE</button>
+      <button data-action="speed">SPEED</button>
+      <button data-action="timer">TIMER</button>
+      <button data-action="sleep">SLEEP</button>
+      <button data-action="temp_up">TEMP+</button>
+      <button data-action="temp_down">TEMP-</button>
+    </section>
+
+    <section class="states">
+      <span class="tag" id="power">POWER OFF</span>
+      <span class="tag" id="mode">MODE --</span>
+      <span class="tag" id="speed">SPEED --</span>
+      <span class="tag" id="timer">TIMER OFF</span>
+      <span class="tag" id="sleep">SLEEP OFF</span>
+      <span class="tag" id="comp">COMP OFF</span>
+      <span class="tag" id="water">FULL WATER: NO</span>
+    </section>
+  </main>
+
+  <script>
+    const fmt = (v, digits = 1) => (typeof v === 'number' ? v.toFixed(digits) : '--');
+
+    async function press(action) {
+      await fetch(`/api/button/${action}`, { method: 'POST' });
+      await refresh();
+    }
+
+    function setTag(id, text, cls = '') {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = `tag ${cls}`.trim();
+    }
+
+    function updateButtons(state) {
+      document.querySelector('[data-action="power"]').classList.toggle('active', !!state.power);
+      document.querySelector('[data-action="timer"]').classList.toggle('active', !!state.timerActive);
+      document.querySelector('[data-action="sleep"]').classList.toggle('active', !!state.sleepMode);
+    }
+
+    function applyState(state) {
+      document.getElementById('temp').textContent = fmt(state.roomTemp);
+      document.getElementById('hum').textContent = fmt(state.roomHumidity);
+      document.getElementById('target').textContent = state.targetTemp ?? '--';
+
+      setTag('power', state.power ? 'POWER ON' : 'POWER OFF', state.power ? 'ok' : '');
+      setTag('mode', `MODE ${String(state.mode || '--').toUpperCase()}`);
+      setTag('speed', `SPEED ${String(state.speed || '--').toUpperCase()}`);
+      setTag('timer', state.timerActive ? 'TIMER ON' : 'TIMER OFF', state.timerActive ? 'ok' : '');
+      setTag('sleep', state.sleepMode ? 'SLEEP ON' : 'SLEEP OFF', state.sleepMode ? 'ok' : '');
+      setTag('comp', state.compRunning ? 'COMP ON' : 'COMP OFF', state.compRunning ? 'ok' : '');
+      setTag('water', state.fullWater ? 'FULL WATER: YES' : 'FULL WATER: NO', state.fullWater ? 'warn' : '');
+
+      updateButtons(state);
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch('/api/state');
+        const state = await response.json();
+        applyState(state);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    document.querySelectorAll('button[data-action]').forEach((btn) => {
+      btn.addEventListener('click', () => press(btn.dataset.action));
+    });
+
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>
