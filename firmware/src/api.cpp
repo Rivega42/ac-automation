@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include "state.h"
 #include "credentials.h"
+#include "mqtt.h"
 
 namespace {
 
@@ -74,6 +75,9 @@ void sendButtonResponse(AsyncWebServerRequest* request, ButtonAction action) {
   lastPressTime[idx] = now;
 
   const bool queued = enqueueButtonAction(action);
+  if (queued) {
+    mqttPublishLog(actionToName(action), "web");
+  }
 
   StaticJsonDocument<128> doc;
   doc["ok"] = queued;

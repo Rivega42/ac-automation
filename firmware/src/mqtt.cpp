@@ -249,6 +249,21 @@ void mqttPublishState(const ACState& state, bool retain) {
   s_client->publish((String(MQTT_PREFIX) + "/state").c_str(), 0, retain, payload.c_str());
 }
 
+void mqttPublishLog(const char* action, const char* source) {
+  if (!s_client || !s_mqttConnected) {
+    return;
+  }
+
+  StaticJsonDocument<128> doc;
+  doc["action"] = action;
+  doc["source"] = source;
+  doc["ts"]     = millis();  // мс с момента старта (NTP — в будущем)
+
+  String payload;
+  serializeJson(doc, payload);
+  s_client->publish((String(MQTT_PREFIX) + "/log").c_str(), 0, false, payload.c_str());
+}
+
 void mqttPublishTelemetry(const ACState& state) {
   if (!s_client || !s_mqttConnected) {
     return;
