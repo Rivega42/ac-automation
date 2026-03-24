@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include "state.h"
+#include "credentials.h"
 
 namespace {
 
@@ -83,8 +84,18 @@ void sendButtonResponse(AsyncWebServerRequest* request, ButtonAction action) {
   request->send(queued ? 200 : 503, "application/json", payload);
 }
 
+// Проверка Basic Auth — применяется ко всем маршрутам кроме /api/state
+static bool checkAuth(AsyncWebServerRequest* request) {
+  if (!request->authenticate(WEB_USER, WEB_PASS)) {
+    request->requestAuthentication();
+    return false;
+  }
+  return true;
+}
+
 void registerButtonEndpoint(AsyncWebServer& server, const char* path, ButtonAction action) {
   server.on(path, HTTP_POST, [action](AsyncWebServerRequest* request) {
+    if (!checkAuth(request)) return;
     sendButtonResponse(request, action);
   });
 }
@@ -100,6 +111,7 @@ void setupApi(AsyncWebServer& server) {
   registerButtonEndpoint(server, "/api/button/temp_up", ButtonAction::TempUp);
   registerButtonEndpoint(server, "/api/button/temp_down", ButtonAction::TempDown);
 
+  // /api/state — без авторизации (для MQTT-мониторинга и Home Assistant)
   server.on("/api/state", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(200, "application/json", buildStateJson(snapshotState()));
   });
