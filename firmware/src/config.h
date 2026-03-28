@@ -17,9 +17,7 @@ constexpr uint16_t MQTT_PORT = 1883;
 constexpr char DEVICE_HOSTNAME[] = "ac-control";
 constexpr char MQTT_PREFIX[] = "home/ac/mystery";
 
-// Basic Auth для веб-интерфейса
-constexpr char WEB_USER[] = "admin";
-constexpr char WEB_PASS[] = "admin";
+// Basic Auth — задаётся в credentials.h
 
 // GPIO map — ESP32-CAM
 // Кнопки → PC817 оптопара → HIGH = нажать
@@ -36,11 +34,13 @@ constexpr uint8_t PIN_TEMP_DOWN = 16;
 constexpr uint8_t PIN_DHT = 3;
 
 // 74HC164 сдвиговый регистр — чтение состояния LED с платы кондея
-// ESP32 подключается параллельно к DATA и CLK линиям CN1 (только чтение!)
-// DATA — серийные данные от главной платы к 74HC164
-// CLK  — тактовый сигнал (ISR срабатывает по нарастающему фронту)
-constexpr uint8_t PIN_SR_DATA = 33;  // GPIO33 — вход DATA от CN1
-constexpr uint8_t PIN_SR_CLK  = 32;  // GPIO32 — вход CLK от CN1
+// Прозвонка CN1 (10-пин шлейф):
+//   CN1 пин 1 = GND
+//   CN1 пин 3 = /MR (Reset 74HC164)
+//   CN1 пин 5 = DATA (74HC164 пины 1+2)
+//   CN1 пин 6 = CLK  (74HC164 пин 8)
+constexpr uint8_t PIN_SR_DATA = 33;  // GPIO33 → CN1 пин 5 (DATA)
+constexpr uint8_t PIN_SR_CLK  = 32;  // GPIO32 → CN1 пин 6 (CLK)
 
 // Количество бит для захвата (два 74HC164 в цепочке = 16 бит)
 // Бит 0-7: первый регистр (COOL, FAN, HEAT, HI, LOW, COMP, SLEEP, AUTO)
