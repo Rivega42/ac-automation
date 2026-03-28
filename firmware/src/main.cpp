@@ -30,6 +30,20 @@ uint32_t lastIndicatorUpdate = 0;
 uint32_t lastButtonExecution = 0;
 bool mdnsStarted = false;
 
+// 74HC164 shift register state (16 bits, two chained registers)
+volatile uint16_t srShiftReg = 0;   // текущий буфер сдвига
+volatile uint16_t srLastValue = 0;  // последнее зафиксированное значение
+volatile bool srUpdated = false;    // флаг: пришло новое значение
+
+// ISR — срабатывает по нарастающему фронту CLK
+void IRAM_ATTR onShiftClk() {
+  const bool bit = digitalRead(PIN_SR_DATA);
+  // 74HC164 сдвигает биты влево, новый бит входит с LSB
+  srShiftReg = (srShiftReg >> 1) | (bit ? (1 << (SR_BIT_COUNT - 1)) : 0);
+  srLastValue = srShiftReg;
+  srUpdated = true;
+}
+
 const uint8_t kButtonPins[] = {
   PIN_POWER,
   PIN_MODE,
@@ -38,16 +52,6 @@ const uint8_t kButtonPins[] = {
   PIN_TIMER,
   PIN_TEMP_UP,
   PIN_TEMP_DOWN,
-};
-
-const uint8_t kIndicatorPins[] = {
-  PIN_IND_COMP,
-  PIN_IND_AUTO,
-  PIN_IND_COOL,
-  PIN_IND_FAN,
-  PIN_IND_HI,
-  PIN_IND_LOW,
-  PIN_IND_FULL_WATER,
 };
 
 void applyActionToState(ButtonAction action) {
@@ -115,14 +119,16 @@ void buttonTask(void* param) {
 }
 
 void setupPins() {
+  // Кнопки — выходы через PC817
   for (uint8_t pin : kButtonPins) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
 
-  for (uint8_t pin : kIndicatorPins) {
-    pinMode(pin, INPUT);
-  }
+  // 74HC164 shift register — входы для чтения LED
+  pinMode(PIN_SR_DATA, INPUT);
+  pinMode(PIN_SR_CLK, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIN_SR_CLK), onShiftClk, RISING);
 }
 
 void setupWifi() {
@@ -154,56 +160,47 @@ void setupFiles() {
   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 }
 
+// Читаем состояние LED через 74HC164 shift register
+// Вызывается из loop() — безопасно читает volatile srLastValue
 bool updateIndicators() {
-  bool changed = false;
+  if (!srUpdated) {
+    return false;
+  }
 
-  const bool autoMode = digitalRead(PIN_IND_AUTO) == HIGH;
-  const bool coolMode = digitalRead(PIN_IND_COOL) == HIGH;
-  const bool fanMode = digitalRead(PIN_IND_FAN) == HIGH;
-  const bool speedHi = digitalRead(PIN_IND_HI) == HIGH;
-  const bool speedLow = digitalRead(PIN_IND_LOW) == HIGH;
-  const bool fullWater = digitalRead(PIN_IND_FULL_WATER) == HIGH;
-  const bool comp = digitalRead(PIN_IND_COMP) == HIGH;
+  // Атомарно читаем из volatile (ISR может обновить в любой момент)
+  noInterrupts();
+  const uint16_t bits = srLastValue;
+  srUpdated = false;
+  interrupts();
+
+  const bool autoMode  = bits & SR_MASK_AUTO;
+  const bool coolMode  = bits & SR_MASK_COOL;
+  const bool fanMode   = bits & SR_MASK_FAN;
+  // HEAT пока не в состоянии (Mystery MSS-09R07M — только охлаждение)
+  const bool speedHi   = bits & SR_MASK_HI;
+  const bool speedLow  = bits & SR_MASK_LOW;
+  const bool comp      = bits & SR_MASK_COMP;
+  const bool fullWater = bits & SR_MASK_FULL_WATER;
 
   if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
     return false;
   }
 
+  bool changed = false;
+
   String newMode = g_state.mode;
-  if (autoMode) {
-    newMode = "auto";
-  } else if (coolMode) {
-    newMode = "cool";
-  } else if (fanMode) {
-    newMode = "fan";
-  }
+  if (autoMode)      newMode = "auto";
+  else if (coolMode) newMode = "cool";
+  else if (fanMode)  newMode = "fan";
 
   String newSpeed = g_state.speed;
-  if (speedHi) {
-    newSpeed = "hi";
-  } else if (speedLow) {
-    newSpeed = "low";
-  }
+  if (speedHi)       newSpeed = "hi";
+  else if (speedLow) newSpeed = "low";
 
-  if (g_state.mode != newMode) {
-    g_state.mode = newMode;
-    changed = true;
-  }
-
-  if (g_state.speed != newSpeed) {
-    g_state.speed = newSpeed;
-    changed = true;
-  }
-
-  if (g_state.fullWater != fullWater) {
-    g_state.fullWater = fullWater;
-    changed = true;
-  }
-
-  if (g_state.compRunning != comp) {
-    g_state.compRunning = comp;
-    changed = true;
-  }
+  if (g_state.mode != newMode)           { g_state.mode = newMode;           changed = true; }
+  if (g_state.speed != newSpeed)         { g_state.speed = newSpeed;         changed = true; }
+  if (g_state.fullWater != fullWater)    { g_state.fullWater = fullWater;    changed = true; }
+  if (g_state.compRunning != comp)       { g_state.compRunning = comp;       changed = true; }
 
   xSemaphoreGive(g_stateMutex);
   return changed;
