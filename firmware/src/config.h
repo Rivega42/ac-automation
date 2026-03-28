@@ -17,6 +17,10 @@ constexpr uint16_t MQTT_PORT = 1883;
 constexpr char DEVICE_HOSTNAME[] = "ac-control";
 constexpr char MQTT_PREFIX[] = "home/ac/mystery";
 
+// Basic Auth для веб-интерфейса
+constexpr char WEB_USER[] = "admin";
+constexpr char WEB_PASS[] = "admin";
+
 // GPIO map — ESP32-CAM
 // Кнопки → PC817 оптопара → HIGH = нажать
 constexpr uint8_t PIN_POWER     =  2;
