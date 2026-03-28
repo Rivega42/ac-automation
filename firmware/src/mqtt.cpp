@@ -10,11 +10,23 @@ bool s_wifiConnected = false;
 bool s_mqttConnected = false;
 uint32_t s_lastReconnectAttempt = 0;
 
+// Маппинг внутренних значений → HA
+static String modeToHA(const String& m, bool power) {
+  if (!power) return "off";
+  if (m == "fan") return "fan_only";
+  return m;  // auto, cool
+}
+
+static String speedToHA(const String& s) {
+  if (s == "hi") return "high";
+  return s;  // low
+}
+
 String stateJson(const ACState& state) {
   StaticJsonDocument<512> doc;
   doc["power"] = state.power;
-  doc["mode"] = state.mode;
-  doc["speed"] = state.speed;
+  doc["mode"] = modeToHA(state.mode, state.power);
+  doc["speed"] = speedToHA(state.speed);
   doc["targetTemp"] = state.targetTemp;
   doc["timerActive"] = state.timerActive;
   doc["sleepMode"] = state.sleepMode;
@@ -63,8 +75,13 @@ void publishDiscovery() {
   climate["mode_command_topic"] = String(MQTT_PREFIX) + "/set/mode";
   climate["temperature_command_topic"] = String(MQTT_PREFIX) + "/set/temp";
   climate["fan_mode_command_topic"] = String(MQTT_PREFIX) + "/set/speed";
+
   climate["mode_state_topic"] = String(MQTT_PREFIX) + "/state";
   climate["mode_state_template"] = "{{ value_json.mode }}";
+  climate["fan_mode_state_topic"] = String(MQTT_PREFIX) + "/state";
+  climate["fan_mode_state_template"] = "{{ value_json.speed }}";
+  climate["temperature_state_topic"] = String(MQTT_PREFIX) + "/state";
+  climate["temperature_state_template"] = "{{ value_json.targetTemp }}";
   climate["current_temperature_topic"] = String(MQTT_PREFIX) + "/temperature";
   climate["availability_topic"] = String(MQTT_PREFIX) + "/available";
 
@@ -107,6 +124,17 @@ void publishDiscovery() {
   s_client->publish("homeassistant/binary_sensor/mystery_water/config", 0, true, waterPayload.c_str());
 }
 
+// Цикл режимов: auto(0) → cool(1) → fan(2) → auto(0)
+static int modeIndex(const String& m) {
+  if (m == "cool") return 1;
+  if (m == "fan")  return 2;
+  return 0;  // auto или неизвестный
+}
+
+static int modePressesNeeded(const String& from, const String& to) {
+  return (modeIndex(to) - modeIndex(from) + 3) % 3;
+}
+
 void applySetPower(const String& value) {
   const ACState state = snapshotState();
   const bool wantOn = value.equalsIgnoreCase("ON");
@@ -116,25 +144,45 @@ void applySetPower(const String& value) {
 }
 
 void applySetMode(const String& value) {
-  if (value == "auto" || value == "cool" || value == "fan") {
-    enqueueButtonAction(ButtonAction::Mode);
-    if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-      g_state.mode = value;
-      xSemaphoreGive(g_stateMutex);
-    }
-    publishStateToOutputs();
+  String target = value;
+  // HA отправляет "fan_only" → внутреннее "fan"
+  if (target == "fan_only") target = "fan";
+
+  // HA отправляет "off" на mode_command_topic → выключаем
+  if (target == "off") {
+    applySetPower("OFF");
+    return;
   }
+
+  if (target != "auto" && target != "cool" && target != "fan") return;
+
+  const ACState state = snapshotState();
+
+  // Если кондей выключен — включаем сначала
+  if (!state.power) {
+    enqueueButtonAction(ButtonAction::Power);
+  }
+
+  // Рассчитываем нужное количество нажатий для перехода к целевому режиму
+  const int presses = modePressesNeeded(state.mode, target);
+  for (int i = 0; i < presses; ++i) {
+    enqueueButtonAction(ButtonAction::Mode);
+  }
+  // Состояние обновится через applyActionToState в buttonTask
 }
 
 void applySetSpeed(const String& value) {
-  if (value == "hi" || value == "low") {
+  String target = value;
+  // HA отправляет "high" → внутреннее "hi"
+  if (target == "high") target = "hi";
+  if (target != "hi" && target != "low") return;
+
+  const ACState state = snapshotState();
+  // Только если скорость действительно нужно менять
+  if (state.speed != target) {
     enqueueButtonAction(ButtonAction::Speed);
-    if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-      g_state.speed = value;
-      xSemaphoreGive(g_stateMutex);
-    }
-    publishStateToOutputs();
   }
+  // Состояние обновится через applyActionToState в buttonTask
 }
 
 void applySetTemp(const String& value) {

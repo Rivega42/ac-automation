@@ -34,7 +34,26 @@ void nvsRestoreState() {
   prefs.end();
 }
 
+// Кэш последнего сохранённого состояния — пишем в NVS только при реальных изменениях
+// для снижения износа flash (ESP32 NVS ~100K циклов записи)
+static bool     s_savedPower      = false;
+static String   s_savedMode       = "auto";
+static String   s_savedSpeed      = "hi";
+static int      s_savedTargetTemp = 22;
+static bool     s_savedSleepMode  = false;
+static bool     s_savedTimerActive = false;
+
 void nvsSaveState(const ACState& state) {
+  // Проверяем изменились ли персистентные поля
+  if (state.power == s_savedPower &&
+      state.mode == s_savedMode &&
+      state.speed == s_savedSpeed &&
+      state.targetTemp == s_savedTargetTemp &&
+      state.sleepMode == s_savedSleepMode &&
+      state.timerActive == s_savedTimerActive) {
+    return;  // ничего не изменилось — не трогаем flash
+  }
+
   Preferences prefs;
   if (!prefs.begin(kNvsNamespace, /*readOnly=*/false)) {
     return;
@@ -48,4 +67,12 @@ void nvsSaveState(const ACState& state) {
   prefs.putBool("timerActive", state.timerActive);
 
   prefs.end();
+
+  // Обновляем кэш
+  s_savedPower       = state.power;
+  s_savedMode        = state.mode;
+  s_savedSpeed       = state.speed;
+  s_savedTargetTemp  = state.targetTemp;
+  s_savedSleepMode   = state.sleepMode;
+  s_savedTimerActive = state.timerActive;
 }

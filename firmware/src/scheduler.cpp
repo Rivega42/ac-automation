@@ -95,13 +95,26 @@ void schedulerTick() {
     }
 
     if (slot.power) {
-      // Устанавливаем режим и температуру через мьютекс
-      if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        g_state.mode = slot.mode;
-        g_state.targetTemp = slot.targetTemp;
-        xSemaphoreGive(g_stateMutex);
+      // Переключаем режим физическими нажатиями
+      if (state.mode != slot.mode) {
+        // Цикл: auto(0) → cool(1) → fan(2) → auto(0)
+        auto modeIdx = [](const String& m) -> int {
+          if (m == "cool") return 1;
+          if (m == "fan")  return 2;
+          return 0;
+        };
+        const int presses = (modeIdx(slot.mode) - modeIdx(state.mode) + 3) % 3;
+        for (int i = 0; i < presses; ++i) {
+          enqueueButtonAction(ButtonAction::Mode);
+        }
       }
-      publishStateToOutputs();
+
+      // Переключаем температуру нажатиями
+      const int delta = slot.targetTemp - state.targetTemp;
+      const ButtonAction tempAction = delta > 0 ? ButtonAction::TempUp : ButtonAction::TempDown;
+      for (int i = 0; i < abs(delta); ++i) {
+        enqueueButtonAction(tempAction);
+      }
     }
 
     mqttPublishLog("schedule_trigger", "scheduler");
