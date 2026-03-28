@@ -261,6 +261,11 @@ void onMqttMessage(char* topic,
 }  // namespace
 
 void setupMqtt(AsyncMqttClient& client) {
+  // Если MQTT_HOST не задан — пропускаем настройку
+  if (strlen(MQTT_HOST) == 0) {
+    return;
+  }
+
   s_client = &client;
 
   client.setServer(MQTT_HOST, MQTT_PORT);
